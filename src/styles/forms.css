@@ -1,0 +1,332 @@
+/* UCS Registration Form Styles */
+.ucs-page {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+/* Header with teal background */
+.ucs-header {
+  background: linear-gradient(135deg, #20b2aa 0%, #1a9b94 100%);
+  color: white;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.back-button {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.back-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ucs-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Main content */
+.ucs-content {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+/* Registration form card */
+.registration-card {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  margin-bottom: 32px;
+}
+
+.form-title {
+  text-align: center;
+  color: #20b2aa;
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 32px;
+}
+
+.form-group {
+  margin-bottom: 24px;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #333;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.form-input, .form-select {
+  width: 100%;
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  font-size: 16px;
+  background-color: #f8f9fa;
+  transition: all 0.2s ease;
+}
+
+.form-input:focus, .form-select:focus {
+  outline: none;
+  border-color: #20b2aa;
+  background-color: white;
+  box-shadow: 0 0 0 3px rgba(32, 178, 170, 0.1);
+}
+
+.form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 12px center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+  appearance: none;
+  cursor: pointer;
+}
+
+.btn-save {
+  width: 100%;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #20b2aa 0%, #1a9b94 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 8px;
+}
+
+.btn-save:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(32, 178, 170, 0.3);
+}
+
+.btn-save:active {
+  transform: translateY(0);
+}
+
+.btn-save:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+}
+
+.btn-secondary:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+}
+
+/* List section */
+.list-section {
+  background: white;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.list-title {
+  color: #20b2aa;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.filter-container {
+  margin-bottom: 24px;
+}
+
+.filter-select {
+  width: 100%;
+  max-width: 400px;
+  padding: 12px 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 12px center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+  appearance: none;
+  cursor: pointer;
+}
+
+.ucs-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ucs-item {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  transition: all 0.2s ease;
+}
+
+.ucs-item:hover {
+  background: #e3f2fd;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.ucs-info {
+  flex: 1;
+}
+
+.ucs-name {
+  font-weight: 600;
+  color: #333;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.ucs-details {
+  color: #666;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-edit, .btn-delete {
+  background: none;
+  border: none;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.btn-edit {
+  color: #20b2aa;
+}
+
+.btn-edit:hover {
+  background: rgba(32, 178, 170, 0.1);
+}
+
+.btn-delete {
+  color: #f44336;
+}
+
+.btn-delete:hover {
+  background: rgba(244, 67, 54, 0.1);
+}
+
+/* Messages */
+.message {
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 16px;
+  font-weight: 500;
+}
+
+.message.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.error-message {
+  color: #dc3545;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.form-input.error, .form-select.error {
+  border-color: #dc3545;
+  background-color: #fff5f5;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .ucs-content {
+    padding: 20px 16px;
+  }
+  
+  .registration-card, .list-section {
+    padding: 24px;
+  }
+  
+  .form-title {
+    font-size: 20px;
+  }
+  
+  .ucs-item {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .action-buttons {
+    align-self: flex-end;
+  }
+}

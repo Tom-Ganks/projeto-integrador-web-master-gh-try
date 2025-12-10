@@ -1,0 +1,368 @@
+/* Dialog Styles */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  background: white;
+  border-radius: 16px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  min-width: 400px;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #eee;
+}
+
+.dialog-header h2 {
+  margin: 0;
+  color: #20b2aa;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.btn-close:hover {
+  background: #f5f5f5;
+}
+
+.dialog-body {
+  padding: 24px;
+}
+
+.dialog-body p {
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+/* Form styles in dialogs */
+.dialog-form {
+  padding: 24px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #333;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.form-input, .form-select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  background-color: white;
+  transition: all 0.2s ease;
+}
+
+.form-input:focus, .form-select:focus {
+  outline: none;
+  border-color: #20b2aa;
+  box-shadow: 0 0 0 3px rgba(32, 178, 170, 0.1);
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid #eee;
+}
+
+.btn-primary {
+  background: #20b2aa;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: #1a9b94;
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: #f5f5f5;
+  color: #666;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: #e0e0e0;
+}
+
+/* Feriados Dialog Specific Styles */
+.feriados-dialog {
+  min-width: 600px;
+  max-width: 800px;
+}
+
+.feriados-content {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.feriados-section {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: #20b2aa;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.section-header h3 {
+  margin: 0;
+  flex: 1;
+  color: #333;
+  font-size: 16px;
+}
+
+.btn-add {
+  background: #20b2aa;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(32, 178, 170, 0.3);
+}
+
+.btn-add:hover {
+  background: #1a9b94;
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(32, 178, 170, 0.4);
+}
+
+.feriados-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feriado-item {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s ease;
+  border-left: 4px solid transparent;
+}
+
+.feriado-item:hover {
+  transform: translateX(4px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.feriado-item.nacional {
+  border-left-color: #4CAF50;
+}
+
+.feriado-item.municipal {
+  border-left-color: #2196F3;
+}
+
+.feriado-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.feriado-info strong {
+  color: #333;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.feriado-info span {
+  color: #666;
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+.btn-remove {
+  background: none;
+  border: none;
+  color: #f44336;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-remove:hover {
+  background: rgba(244, 67, 54, 0.1);
+  transform: scale(1.1);
+}
+
+.add-feriado-form {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 2px solid #20b2aa;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.add-feriado-form input {
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.add-feriado-form input:focus {
+  outline: none;
+  border-color: #20b2aa;
+  box-shadow: 0 0 0 3px rgba(32, 178, 170, 0.1);
+}
+
+.add-feriado-form .form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.add-feriado-form button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.add-feriado-form button[type="button"] {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.add-feriado-form button[type="button"]:hover {
+  background: #e0e0e0;
+}
+
+.add-feriado-form button[type="submit"] {
+  background: #20b2aa;
+  color: white;
+}
+
+.add-feriado-form button[type="submit"]:hover {
+  background: #1a9b94;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(32, 178, 170, 0.3);
+}
+
+.add-feriado-form button[type="submit"]:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.no-feriados {
+  text-align: center;
+  color: #999;
+  padding: 24px;
+  font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .feriados-dialog {
+    min-width: 90vw;
+    max-width: 90vw;
+  }
+
+  .feriado-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .btn-remove {
+    align-self: flex-end;
+  }
+}
