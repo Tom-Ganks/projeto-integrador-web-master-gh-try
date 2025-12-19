@@ -1,17 +1,17 @@
 {
   "files": {
-    "main.css": "/projeto-integrador-web-master-gh-try/static/css/main.0af0fc01.css",
-    "main.js": "/projeto-integrador-web-master-gh-try/static/js/main.e2e7cd66.js",
+    "main.css": "/projeto-integrador-web-master-gh-try/static/css/main.559a996a.css",
+    "main.js": "/projeto-integrador-web-master-gh-try/static/js/main.416e2579.js",
     "static/js/453.437477d3.chunk.js": "/projeto-integrador-web-master-gh-try/static/js/453.437477d3.chunk.js",
     "static/media/bootstrap-icons.woff?": "/projeto-integrador-web-master-gh-try/static/media/bootstrap-icons.1295669cd4e305c97f2c.woff",
     "static/media/bootstrap-icons.woff2?": "/projeto-integrador-web-master-gh-try/static/media/bootstrap-icons.92ea18a81d737146ff04.woff2",
     "index.html": "/projeto-integrador-web-master-gh-try/index.html",
-    "main.0af0fc01.css.map": "/projeto-integrador-web-master-gh-try/static/css/main.0af0fc01.css.map",
-    "main.e2e7cd66.js.map": "/projeto-integrador-web-master-gh-try/static/js/main.e2e7cd66.js.map",
+    "main.559a996a.css.map": "/projeto-integrador-web-master-gh-try/static/css/main.559a996a.css.map",
+    "main.416e2579.js.map": "/projeto-integrador-web-master-gh-try/static/js/main.416e2579.js.map",
     "453.437477d3.chunk.js.map": "/projeto-integrador-web-master-gh-try/static/js/453.437477d3.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.0af0fc01.css",
-    "static/js/main.e2e7cd66.js"
+    "static/css/main.559a996a.css",
+    "static/js/main.416e2579.js"
   ]
 }
