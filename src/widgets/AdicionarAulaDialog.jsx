@@ -1,328 +1,300 @@
-import React, { useState, useEffect } from 'react';
-import { Users, BookOpen, Clock, X } from 'lucide-react';
-import { supabaseClient } from '../services/supabase.js';
-import '../styles/dialogs.css';
+import React, { useEffect, useState } from 'react';
+import { X, Clock, BookOpen, Users, Calendar, Info } from 'lucide-react';
+import { supabaseClient } from '../services/supabase';
 
 const AdicionarAulaDialog = ({ selectedDays, onClose, onAulaAdded }) => {
-  const [selectedTurmaId, setSelectedTurmaId] = useState(null);
-  const [selectedUcId, setSelectedUcId] = useState(null);
-  const [periodo, setPeriodo] = useState('Matutino');
-  const [horasAula, setHorasAula] = useState(1);
   const [turmas, setTurmas] = useState([]);
   const [ucs, setUcs] = useState([]);
-  const [ucsFiltradas, setUcsFiltradas] = useState([]);
-  const [cargaHorariaUc, setCargaHorariaUc] = useState({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
-  const periodoConfig = {
-    'Matutino': { maxHoras: 4, horario: '08:00-12:00' },
-    'Vespertino': { maxHoras: 4, horario: '14:00-18:00' },
-    'Noturno': { maxHoras: 3, horario: '19:00-22:00' }
-  };
+  const [formData, setFormData] = useState({
+    idturma: '',
+    iduc: '',
+    horaInicio: '',
+    horas: 1,
+    horario: '',
+    status: 'Agendada'
+  });
 
+  // =========================
+  // LOAD TURMAS
+  // =========================
   useEffect(() => {
-    loadData();
+    const loadTurmas = async () => {
+      const { data, error } = await supabaseClient
+        .from('turma')
+        .select(`
+          idturma,
+          turmanome,
+          idcurso,
+          cursos(nomecurso)
+        `)
+        .order('turmanome');
+
+      if (!error) setTurmas(data || []);
+    };
+
+    loadTurmas();
   }, []);
 
+  // =========================
+  // LOAD UCs (FILTRADO POR CURSO DA TURMA)
+  // =========================
   useEffect(() => {
-    if (selectedTurmaId) {
-      filterUcsByTurma();
-    }
-  }, [selectedTurmaId, ucs]);
+    const loadUCs = async () => {
+      if (!formData.idturma) {
+        setUcs([]);
+        return;
+      }
 
-  const loadData = async () => {
+      const turmaSelecionada = turmas.find(
+        t => t.idturma === Number(formData.idturma)
+      );
+
+      if (!turmaSelecionada?.idcurso) return;
+
+      const { data, error } = await supabaseClient
+        .from('unidades_curriculares')
+        .select('iduc, nomeuc, cargahoraria')
+        .eq('idcurso', turmaSelecionada.idcurso)
+        .order('nomeuc');
+
+      if (!error) setUcs(data || []);
+    };
+
+    loadUCs();
+  }, [formData.idturma, turmas]);
+
+  // =========================
+  // CALCULAR HORÁRIO FINAL
+  // =========================
+  useEffect(() => {
+    if (!formData.horaInicio || !formData.horas) return;
+
+    const [h, m] = formData.horaInicio.split(':').map(Number);
+    const inicio = new Date();
+    inicio.setHours(h, m, 0, 0);
+
+    const fim = new Date(inicio.getTime() + formData.horas * 60 * 60 * 1000);
+    const horarioFinal = `${String(fim.getHours()).padStart(2, '0')}:${String(
+      fim.getMinutes()
+    ).padStart(2, '0')}`;
+
+    setFormData(prev => ({
+      ...prev,
+      horario: `${formData.horaInicio}-${horarioFinal}`
+    }));
+  }, [formData.horaInicio, formData.horas]);
+
+  // =========================
+  // REGRAS DE HORAS
+  // =========================
+  const getMaxHoras = () => {
+    if (!formData.horaInicio) return 4;
+    const h = Number(formData.horaInicio.split(':')[0]);
+    return h >= 19 ? 3 : 4;
+  };
+
+  const getPeriodoNome = () => {
+    if (!formData.horaInicio) return '';
+    const h = Number(formData.horaInicio.split(':')[0]);
+    if (h >= 19) return 'Noturno';
+    if (h >= 14) return 'Vespertino';
+    return 'Matutino';
+  };
+
+  // =========================
+  // SUBMIT
+  // =========================
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!formData.idturma || !formData.iduc || !formData.horaInicio) {
+      alert('Preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      await Promise.all([
-        loadTurmas(),
-        loadUcs(),
-        loadCargaHoraria()
-      ]);
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      await onAulaAdded({
+        ...formData,
+        dias: selectedDays
+      });
+      onClose();
     } finally {
       setLoading(false);
     }
   };
 
-  const loadTurmas = async () => {
-    try {
-      const { data, error } = await supabaseClient
-        .from('turma')
-        .select('idturma, turmanome, idcurso')
-        .order('turmanome');
-
-      if (error) throw error;
-      setTurmas(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar turmas:', error);
-    }
-  };
-
-  const loadUcs = async () => {
-    try {
-      const { data, error } = await supabaseClient
-        .from('unidades_curriculares')
-        .select('iduc, nomeuc, cargahoraria, idcurso')
-        .order('nomeuc');
-
-      if (error) throw error;
-      setUcs(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar UCs:', error);
-    }
-  };
-
-  const loadCargaHoraria = async () => {
-    try {
-      const { data, error } = await supabaseClient
-        .from('unidades_curriculares')
-        .select('iduc, cargahoraria');
-
-      if (error) throw error;
-
-      const cargaMap = {};
-      data?.forEach(uc => {
-        cargaMap[uc.iduc] = uc.cargahoraria || 0;
-      });
-
-      setCargaHorariaUc(cargaMap);
-    } catch (error) {
-      console.error('Erro ao carregar carga horária:', error);
-    }
-  };
-
-  const filterUcsByTurma = async () => {
-    if (!selectedTurmaId) {
-      setUcsFiltradas([]);
-      return;
-    }
-
-    try {
-      const turma = turmas.find(t => t.idturma === selectedTurmaId);
-      if (!turma) return;
-
-      const filtered = ucs.filter(uc => uc.idcurso === turma.idcurso);
-      setUcsFiltradas(filtered);
-    } catch (error) {
-      console.error('Erro ao filtrar UCs:', error);
-    }
-  };
-
-  const getCargaHorariaRestante = () => {
-    if (!selectedUcId) return 0;
-    const cargaAtual = cargaHorariaUc[selectedUcId] || 0;
-    const horasAgendando = horasAula * selectedDays.size;
-    return cargaAtual - horasAgendando;
-  };
-
-  const podeSalvar = () => {
-    return selectedTurmaId && selectedUcId && selectedDays.size > 0 && getCargaHorariaRestante() >= 0;
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!podeSalvar()) return;
-
-    const aulaData = {
-      idturma: selectedTurmaId,
-      iduc: selectedUcId,
-      periodo,
-      horas: horasAula,
-      horario: periodoConfig[periodo].horario,
-      dias: selectedDays
-    };
-
-    onAulaAdded(aulaData);
-  };
-
-  const maxHoras = periodoConfig[periodo]?.maxHoras || 1;
-
-  if (loading) {
-    return (
-      <div className="dialog-overlay">
-        <div className="dialog-content">
-          <div style={{ padding: '40px', textAlign: 'center' }}>
-            Carregando...
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const totalHoras = selectedDays.size * formData.horas;
 
   return (
     <div className="dialog-overlay" onClick={onClose}>
-      <div className="dialog-content" onClick={e => e.stopPropagation()} style={{ width: '600px' }}>
+      <div className="adicionar-aula-dialog" onClick={e => e.stopPropagation()}>
+        {/* Header */}
         <div className="dialog-header">
-          <h2>Agendar Aulas</h2>
-          <button className="btn-close" onClick={onClose}>
+          <h2>Configuração das Aulas</h2>
+          <button className="close-button" onClick={onClose}>
             <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="dialog-form">
-          <div style={{ marginBottom: '24px', padding: '16px', background: '#f0f8ff', borderRadius: '8px' }}>
-            <h3 style={{ margin: '0 0 12px 0', color: '#20b2aa' }}>Dias Selecionados</h3>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-              {Array.from(selectedDays).map(timestamp => {
-                const date = new Date(timestamp);
-                return (
-                  <span key={timestamp} style={{
-                    background: '#20b2aa',
-                    color: 'white',
-                    padding: '4px 8px',
-                    borderRadius: '12px',
-                    fontSize: '12px'
-                  }}>
-                    {new Intl.DateTimeFormat('pt-BR', {
-                      weekday: 'short',
-                      day: '2-digit',
-                      month: '2-digit'
-                    }).format(date)}
-                  </span>
-                );
-              })}
-            </div>
-            <p style={{ margin: 0, color: '#666' }}>Total de horas a agendar: {horasAula * selectedDays.size}</p>
-          </div>
+        {/* Selected Days Info */}
+        <div className="selected-days-banner">
+          <Calendar size={16} />
+          <span>Total de dias a agendar: <strong>{selectedDays.size}</strong></span>
+        </div>
 
+        <form onSubmit={handleSubmit} className="dialog-form">
+          {/* Turma Field */}
           <div className="form-group">
             <label className="form-label">
               <Users size={16} />
-              Turma
+              <span>Turma</span>
+              <span className="required">*</span>
             </label>
             <select
               className="form-select"
-              value={selectedTurmaId || ''}
-              onChange={(e) => {
-                setSelectedTurmaId(e.target.value ? parseInt(e.target.value) : null);
-                setSelectedUcId(null);
-              }}
+              value={formData.idturma}
+              onChange={e =>
+                setFormData({
+                  ...formData,
+                  idturma: e.target.value,
+                  iduc: ''
+                })
+              }
               required
             >
               <option value="">Selecione uma turma</option>
-              {turmas.map(turma => (
-                <option key={turma.idturma} value={turma.idturma}>
-                  {turma.turmanome}
+              {turmas.map(t => (
+                <option key={t.idturma} value={t.idturma}>
+                  {t.cursos?.nomecurso} - {t.turmanome}
                 </option>
               ))}
             </select>
           </div>
 
-          {selectedTurmaId && (
+          {/* Unidade Curricular Field */}
+          <div className="form-group">
+            <label className="form-label">
+              <BookOpen size={16} />
+              <span>Unidade Curricular</span>
+              <span className="required">*</span>
+            </label>
+            <select
+              className="form-select"
+              value={formData.iduc}
+              onChange={e => setFormData({ ...formData, iduc: e.target.value })}
+              disabled={!formData.idturma}
+              required
+            >
+              <option value="">Selecione uma UC</option>
+              {ucs.map(uc => (
+                <option key={uc.iduc} value={uc.iduc}>
+                  {uc.nomeuc} ({uc.cargahoraria}h restantes)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Período Field (Auto-calculated) */}
+          {formData.horaInicio && (
             <div className="form-group">
               <label className="form-label">
-                <BookOpen size={16} />
-                Unidade Curricular
+                <Clock size={16} />
+                <span>Período</span>
               </label>
-              <select
-                className="form-select"
-                value={selectedUcId || ''}
-                onChange={(e) => setSelectedUcId(e.target.value ? parseInt(e.target.value) : null)}
-                required
-              >
-                <option value="">Selecione uma UC</option>
-                {ucsFiltradas.map(uc => {
-                  const cargaRestante = cargaHorariaUc[uc.iduc] || 0;
-                  return (
-                    <option
-                      key={uc.iduc}
-                      value={uc.iduc}
-                      disabled={cargaRestante < horasAula}
-                    >
-                      {uc.nomeuc} ({cargaRestante}h restantes)
-                    </option>
-                  );
-                })}
-              </select>
+              <div className="periodo-display">
+                <span className="periodo-badge">{getPeriodoNome()}</span>
+              </div>
             </div>
           )}
 
-          {selectedUcId && (
-            <>
-              <div className="form-group">
-                <label className="form-label">
-                  <Clock size={16} />
-                  Período
-                </label>
-                <select
-                  className="form-select"
-                  value={periodo}
-                  onChange={(e) => {
-                    setPeriodo(e.target.value);
-                    const newMaxHoras = periodoConfig[e.target.value].maxHoras;
-                    if (horasAula > newMaxHoras) {
-                      setHorasAula(newMaxHoras);
-                    }
-                  }}
-                >
-                  {Object.keys(periodoConfig).map(p => (
-                    <option key={p} value={p}>
-                      {p} ({periodoConfig[p].horario})
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Hora de Início Field */}
+          <div className="form-group">
+            <label className="form-label">
+              <Clock size={16} />
+              <span>Hora de Início</span>
+              <span className="required">*</span>
+            </label>
+            <input
+              type="time"
+              className="form-input"
+              value={formData.horaInicio}
+              onChange={e =>
+                setFormData({ ...formData, horaInicio: e.target.value })
+              }
+              required
+            />
+          </div>
 
-              <div className="form-group">
-                <label className="form-label">
-                  Horas por aula: {horasAula}
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max={maxHoras}
-                  value={horasAula}
-                  onChange={(e) => setHorasAula(parseInt(e.target.value))}
-                  style={{ width: '100%', margin: '8px 0' }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#666' }}>
-                  <span>1h</span>
-                  <span>{maxHoras}h</span>
-                </div>
+          {/* Horas por Aula Field */}
+          <div className="form-group">
+            <label className="form-label">
+              <span>Horas por aula: <strong>{formData.horas}</strong> (máx {getMaxHoras()}h)</span>
+            </label>
+            <div className="slider-container">
+              <input
+                type="range"
+                className="form-slider"
+                min="1"
+                max={getMaxHoras()}
+                value={formData.horas}
+                onChange={e =>
+                  setFormData({ ...formData, horas: Number(e.target.value) })
+                }
+              />
+              <div className="slider-labels">
+                <span>1h</span>
+                <span>{getMaxHoras()}h</span>
               </div>
+            </div>
+          </div>
 
-              <div style={{ background: '#f8f9fa', padding: '16px', borderRadius: '8px', marginBottom: '24px' }}>
-                <h3 style={{ margin: '0 0 12px 0', color: '#20b2aa' }}>Resumo do Agendamento</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Período:</span>
-                    <strong>{periodo}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Horas por aula:</span>
-                    <strong>{horasAula}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Total de aulas:</span>
-                    <strong>{selectedDays.size}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Total de horas:</span>
-                    <strong>{horasAula * selectedDays.size}</strong>
-                  </div>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    color: getCargaHorariaRestante() < 0 ? '#f44336' : 'inherit'
-                  }}>
-                    <span>Carga horária restante:</span>
-                    <strong>{getCargaHorariaRestante()} horas</strong>
-                  </div>
-                </div>
-              </div>
-            </>
+          {/* Horário Calculado */}
+          {formData.horario && (
+            <div className="horario-calculado">
+              <strong>Horário agendado: {formData.horario}</strong>
+            </div>
           )}
 
+          {/* Resumo do Agendamento */}
+          <div className="resumo-section">
+            <div className="resumo-header">
+              <Info size={16} />
+              <span>Resumo do Agendamento</span>
+            </div>
+            <div className="resumo-content">
+              <div className="resumo-item">
+                <span>Período:</span>
+                <strong>{getPeriodoNome() || 'N/A'}</strong>
+              </div>
+              <div className="resumo-item">
+                <span>Horário:</span>
+                <strong>{formData.horario || 'N/A'}</strong>
+              </div>
+              <div className="resumo-item">
+                <span>Horas por aula:</span>
+                <strong>{formData.horas}</strong>
+              </div>
+              <div className="resumo-item">
+                <span>Total de horas:</span>
+                <strong>{totalHoras}</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
           <div className="dialog-actions">
-            <button type="button" onClick={onClose} className="btn-secondary">
+            <button type="button" className="btn-secondary" onClick={onClose}>
               Cancelar
             </button>
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={!podeSalvar()}
+            <button 
+              type="submit" 
+              className="btn-primary" 
+              disabled={loading || !formData.idturma || !formData.iduc || !formData.horaInicio}
             >
-              Salvar Agendamento
+              {loading ? 'Agendando...' : 'Agendar Aulas'}
             </button>
           </div>
         </form>

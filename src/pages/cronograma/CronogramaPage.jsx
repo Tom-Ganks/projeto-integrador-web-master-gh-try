@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Calendar, Printer, Plus } from 'lucide-react';
+import { ArrowLeft, Calendar, Printer, Plus, Bell, X } from 'lucide-react';
 import { supabaseClient } from '../../services/supabase.js';
 import FeriadosDialog from '../../widgets/FeriadosDialog.jsx';
 import AdicionarAulaDialog from '../../widgets/AdicionarAulaDialog.jsx';
 import PrintSchedule from '../../components/PrintSchedule.jsx'
 import '../../styles/print-schedule.css';
 import '../../styles/cronograma.css';
-
 
 const CronogramaPage = ({ onNavigateHome }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -27,8 +26,11 @@ const CronogramaPage = ({ onNavigateHome }) => {
   const [aulaToEdit, setAulaToEdit] = useState(null);
   const [showConflitoDialog, setShowConflitoDialog] = useState(false);
   const [showPrintView, setShowPrintView] = useState(false);
+  const [cargaRestantePorUC, setCargaRestantePorUC] = useState({});
   const [aulaConflitante, setAulaConflitante] = useState(null);
   const [novaAulaTentada, setNovaAulaTentada] = useState(null);
+  const [pendingClasses, setPendingClasses] = useState([]);
+  const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
 
   const monthNames = [
     'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO',
@@ -44,6 +46,34 @@ const CronogramaPage = ({ onNavigateHome }) => {
   useEffect(() => {
     aplicarFiltroTurma();
   }, [selectedTurmaId, events]);
+
+  useEffect(() => {
+    loadPendingClasses();
+  }, [events]);
+
+  useEffect(() => {
+  if (!selectedDay) return;
+  
+  const aulasDoDia = getEventsForDay(selectedDay);
+  if (aulasDoDia.length === 0) {
+    setCargaRestantePorUC({});
+    return;
+  }
+
+  const carregarCargas = async () => {
+    const novasCargas = {};
+    
+    for (const aula of aulasDoDia) {
+      if (!novasCargas[aula.iduc]) {
+        novasCargas[aula.iduc] = await calcularCargaRestanteUC(aula.iduc);
+      }
+    }
+    
+    setCargaRestantePorUC(novasCargas);
+  };
+  
+  carregarCargas();
+}, [selectedDay, filteredEvents]);
 
   const loadInitialData = async () => {
     try {
@@ -81,7 +111,7 @@ const CronogramaPage = ({ onNavigateHome }) => {
         .select(`
           idaula, iduc, idturma, data, horario, status, horas,
           unidades_curriculares(nomeuc),
-          turma(turmanome)
+          turma(turmanome, instrutores(nomeinstrutor))
         `)
         .order('data');
 
@@ -141,6 +171,36 @@ const CronogramaPage = ({ onNavigateHome }) => {
     } catch (error) {
       console.error('Erro ao carregar feriados municipais:', error);
     }
+  };
+
+  const loadPendingClasses = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const pending = [];
+
+    Object.entries(events).forEach(([dateKey, aulas]) => {
+      aulas.forEach(aula => {
+        if (aula.status === 'Agendada') {
+          const aulaDate = new Date(aula.data + 'T00:00:00');
+          aulaDate.setHours(0, 0, 0, 0);
+
+          if (aulaDate < today) {
+            pending.push({
+              ...aula,
+              dateFormatted: new Date(aula.data).toLocaleDateString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+              })
+            });
+          }
+        }
+      });
+    });
+
+    pending.sort((a, b) => new Date(b.data) - new Date(a.data));
+    setPendingClasses(pending);
   };
 
   const aplicarFiltroTurma = () => {
@@ -338,7 +398,6 @@ const CronogramaPage = ({ onNavigateHome }) => {
     if (!aulaToEdit) return;
 
     try {
-      // Atualiza a aula
       const { error } = await supabaseClient
         .from('aulas')
         .update({
@@ -350,7 +409,6 @@ const CronogramaPage = ({ onNavigateHome }) => {
 
       if (error) throw error;
 
-      // Se a aula for marcada como "Realizada", subtrai as horas da UC
       if (formData.status === 'Realizada') {
         const { data: ucAtual } = await supabaseClient
           .from('unidades_curriculares')
@@ -376,6 +434,22 @@ const CronogramaPage = ({ onNavigateHome }) => {
     }
   };
 
+  const handleReviewClass = (aula) => {
+    setShowNotificationsPanel(false);
+
+    const aulaDate = new Date(aula.data + 'T00:00:00');
+    setSelectedDay(aulaDate);
+    setSelectedDays(new Set());
+
+    const year = aulaDate.getFullYear();
+    const month = aulaDate.getMonth();
+    setCurrentDate(new Date(year, month, 1));
+
+    setTimeout(() => {
+      handleEditAula(aula);
+    }, 300);
+  };
+
 
   if (loading) {
     return (
@@ -389,6 +463,53 @@ const CronogramaPage = ({ onNavigateHome }) => {
 
   return (
     <div className="cronograma-page">
+      {/* Notification Badge */}
+      {pendingClasses.length > 0 && !showNotificationsPanel && (
+        <div
+          className="notification-badge"
+          onClick={() => setShowNotificationsPanel(true)}
+        >
+          <Bell size={16} className="notification-icon" />
+          <span className="notification-count">{pendingClasses.length}</span>
+          <span className="notification-text">aulas pendentes</span>
+        </div>
+      )}
+
+      {/* Notifications Panel */}
+      {showNotificationsPanel && (
+        <div className="notifications-panel">
+          <div className="notifications-header">
+            <h3>Aulas Pendentes de Revisão</h3>
+            <button
+              className="close-notifications"
+              onClick={() => setShowNotificationsPanel(false)}
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="notifications-content">
+            <p className="notifications-description">
+              As aulas abaixo estão agendadas mas já passaram da data. Revise cada uma para confirmar se foi realizada, cancelada ou precisa ser reagendada.
+            </p>
+            {pendingClasses.map(aula => (
+              <div key={aula.idaula} className="notification-item">
+                <div className="notification-info">
+                  <strong>{aula.unidades_curriculares?.nomeuc}</strong>
+                  <span className="notification-date">{aula.dateFormatted}</span>
+                  <span className="notification-turma">{aula.turma?.turmanome}</span>
+                </div>
+                <button
+                  className="review-button"
+                  onClick={() => handleReviewClass(aula)}
+                >
+                  Revisar
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="cronograma-header">
         <div className="cronograma-header-left">
@@ -527,25 +648,38 @@ const CronogramaPage = ({ onNavigateHome }) => {
                     background: '#f8f9fa',
                     padding: '8px',
                     borderRadius: '4px',
-                    marginBottom: '8px'
+                    marginBottom: '8px',
+                    border: '1px solid #e9ecef',
+                    position: 'relative'
                   }}>
-                    <div style={{ fontSize: '12px', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '12px', marginBottom: '8px', fontWeight: 'bold', paddingRight: '80px' }}>
                       <strong>{aula.unidades_curriculares?.nomeuc}</strong> - {aula.turma?.turmanome}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>
-                      {aula.horario} ({aula.horas}h)
+                    <div style={{ fontSize: '10px', color: '#666', marginBottom: '8px', paddingRight: '80px' }}>
+                      <div style={{ marginBottom: '2px' }}><strong>Instrutor:</strong> {aula.turma?.instrutores?.nomeinstrutor || 'N/A'}</div>
+                      <div style={{ marginBottom: '2px' }}><strong>Horário:</strong> {aula.horario} - {aula.horas}h</div>
+                      <div><strong>Status:</strong> {aula.status}</div>
+                      <div><strong>Carga horária restante:</strong> {cargaRestantePorUC[aula.iduc] !== undefined ? `${cargaRestantePorUC[aula.iduc]}h` : 'Carregando...'}</div>
                     </div>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                    <div style={{ 
+                      position: 'absolute', 
+                      top: '8px', 
+                      right: '8px', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '4px' 
+                    }}>
                       <button
                         onClick={() => handleEditAula(aula)}
                         style={{
                           background: '#20b2aa',
                           color: 'white',
                           border: 'none',
-                          padding: '4px 8px',
+                          padding: '3px 6px',
                           borderRadius: '4px',
                           cursor: 'pointer',
-                          fontSize: '10px'
+                          fontSize: '9px',
+                          width: '60px'
                         }}
                       >
                         ✏️ Editar
@@ -556,10 +690,11 @@ const CronogramaPage = ({ onNavigateHome }) => {
                           background: '#dc3545',
                           color: 'white',
                           border: 'none',
-                          padding: '4px 8px',
+                          padding: '3px 6px',
                           borderRadius: '4px',
                           cursor: 'pointer',
-                          fontSize: '10px'
+                          fontSize: '9px',
+                          width: '60px'
                         }}
                       >
                         🗑️ Excluir
@@ -656,7 +791,7 @@ const CronogramaPage = ({ onNavigateHome }) => {
 
       {showAdicionarAulaDialog && (
         <AdicionarAulaDialog
-          selectedDays={selectedDays.size > 0 ? selectedDays : new Set([selectedDay])}
+          selectedDays={selectedDays.size > 0 ? selectedDays : new Set([selectedDay?.getTime()].filter(Boolean))}
           onClose={() => setShowAdicionarAulaDialog(false)}
           onAulaAdded={handleAdicionarAula}
         />
@@ -773,6 +908,36 @@ const CronogramaPage = ({ onNavigateHome }) => {
 // =========================
 // COMPONENTE DE EDIÇÃO DE AULA
 // =========================
+
+const calcularCargaRestanteUC = async (iduc) => {
+  try {
+    // Primeiro, pega a carga horária total da UC
+    const { data: ucData, error: ucError } = await supabaseClient
+      .from('unidades_curriculares')
+      .select('cargahoraria')
+      .eq('iduc', iduc)
+      .single();
+
+    if (ucError) throw ucError;
+
+    // Depois, soma as horas das aulas REALIZADAS desta UC
+    const { data: aulasRealizadas, error: aulasError } = await supabaseClient
+      .from('aulas')
+      .select('horas')
+      .eq('iduc', iduc)
+      .eq('status', 'Realizada');
+
+    if (aulasError) throw aulasError;
+
+    const horasRealizadas = aulasRealizadas.reduce((total, aula) => total + (aula.horas || 0), 0);
+    const cargaRestante = Math.max((ucData.cargahoraria || 0) - horasRealizadas, 0);
+
+    return cargaRestante;
+  } catch (error) {
+    console.error('Erro ao calcular carga restante:', error);
+    return 0;
+  }
+};
 
 const EditAulaForm = ({ aula, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({

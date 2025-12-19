@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabaseClient } from '../services/supabase.js';
 import { getFeriadosNacionais } from '../services/feriadosNacionais.js';
-import '../styles/print-schedule.css';
 
 const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
   const [scheduleData, setScheduleData] = useState(null);
@@ -10,16 +9,6 @@ const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
   useEffect(() => {
     loadScheduleData();
   }, [turmaId, monthDate]);
-
-  const normalizeDate = (dateString) => {
-    // Garante que a data esteja no formato YYYY-MM-DD
-    const date = new Date(dateString);
-    // Usa UTC para evitar problemas de fuso horário
-    const year = date.getUTCFullYear();
-    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(date.getUTCDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
 
   const loadScheduleData = async () => {
     if (!turmaId) {
@@ -30,12 +19,11 @@ const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
     try {
       const year = monthDate.getFullYear();
       const month = monthDate.getMonth();
-      
-      // Use o primeiro e último dia do mês corretamente
+
       const startDate = new Date(year, month, 1);
       const endDate = new Date(year, month + 1, 0);
 
-      // 🔹 1. Buscar turma base
+      // Buscar turma base
       const { data: turmaData, error: turmaError } = await supabaseClient
         .from('turma')
         .select('idturma, turmanome, idinstrutor, idcurso, idturno')
@@ -44,7 +32,7 @@ const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
 
       if (turmaError) throw turmaError;
 
-      // 🔹 2. Buscar nomes relacionados
+      // Buscar nomes relacionados
       let instrutorNome = 'N/A';
       let cursoNome = 'N/A';
       let turnoNome = 'N/A';
@@ -76,7 +64,7 @@ const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
         turnoNome = turnoData?.turno || 'N/A';
       }
 
-      // 🔹 3. Aulas
+      // Aulas
       const { data: aulasData, error: aulasError } = await supabaseClient
         .from('aulas')
         .select(`
@@ -95,7 +83,7 @@ const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
 
       if (aulasError) throw aulasError;
 
-      // 🔹 4. FERIADOS - CORREÇÃO COMPLETA
+      // Feriados municipais
       const { data: feriadosMunicipais, error: feriadosError } = await supabaseClient
         .from('feriadosmunicipais')
         .select('data, nome')
@@ -104,35 +92,36 @@ const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
 
       if (feriadosError) throw feriadosError;
 
-      // 🔹 Feriados Nacionais - CORREÇÃO DO FILTRO
+      // Feriados nacionais - FIXED: Proper date format conversion
       const feriadosNacionais = getFeriadosNacionais();
       const nacionaisFiltrados = Object.entries(feriadosNacionais)
         .filter(([key]) => {
-          const [ano, mes, dia] = key.split('-').map(Number);
-          const feriadoDate = new Date(ano, mes - 1, dia); // mes-1 porque é 0-based
+          // Convert DD/MM/YYYY to Date object
+          const [dia, mes, ano] = key.split('/').map(Number);
+          const feriadoDate = new Date(ano, mes - 1, dia);
           return feriadoDate >= startDate && feriadoDate <= endDate;
         })
-        .map(([key, nome]) => ({
-          data: key,
-          nome,
-        }));
+        .map(([key, nome]) => {
+          // Convert DD/MM/YYYY to YYYY-MM-DD format for consistency
+          const [dia, mes, ano] = key.split('/').map(Number);
+          const formattedDate = `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+          return {
+            data: formattedDate,
+            nome,
+          };
+        });
 
-      // 🔹 Combinar nacional + municipal
       const feriadosCombinados = [
         ...(feriadosMunicipais || []),
         ...nacionaisFiltrados,
       ];
 
-      // DEBUG: Log para verificar os feriados carregados
-      console.log('Feriados carregados:', feriadosCombinados);
-
-      // 🔹 Montagem final
       setScheduleData({
-        turma: { 
-          ...turmaData, 
-          cursoNome, 
-          instrutorNome, 
-          turnoNome 
+        turma: {
+          ...turmaData,
+          cursoNome,
+          instrutorNome,
+          turnoNome
         },
         aulas: aulasData || [],
         feriados: feriadosCombinados || [],
@@ -150,16 +139,18 @@ const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
   };
 
   const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
-  const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
 
+  // FIXED: Improved holiday detection
   const isFeriado = (dateStr) => {
     if (!scheduleData?.feriados) return false;
-    
-    const normalizedTarget = normalizeDate(dateStr);
-    
+
     return scheduleData.feriados.some(f => {
-      const normalizedFeriado = normalizeDate(f.data);
-      return normalizedFeriado === normalizedTarget;
+      // Normalize both dates to YYYY-MM-DD format
+      const feriadoDate = f.data.includes('/')
+        ? f.data.split('/').reverse().join('-') // Convert DD/MM/YYYY to YYYY-MM-DD
+        : f.data; // Already in YYYY-MM-DD format
+
+      return feriadoDate === dateStr;
     });
   };
 
@@ -169,15 +160,12 @@ const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
   const isSunday = (day) =>
     new Date(scheduleData.year, scheduleData.month, day).getDay() === 0;
 
-  const getHoursForDay = (day) => {
+  const getHoursForDay = (day, ucName) => {
     if (!scheduleData?.aulas) return null;
     const dateStr = `${scheduleData.year}-${String(scheduleData.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    const aula = scheduleData.aulas.find(a => a.data === dateStr);
+    const aula = scheduleData.aulas.find(a => a.data === dateStr && a.unidades_curriculares?.nomeuc === ucName);
     return aula ? aula.horas : null;
   };
-
-  const getTotalHours = () =>
-    scheduleData?.aulas?.reduce((sum, aula) => sum + (aula.horas || 0), 0) || 0;
 
   const monthNames = [
     'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO',
@@ -188,7 +176,6 @@ const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
   if (!scheduleData) return <div style={{ padding: '20px' }}>Selecione uma turma.</div>;
 
   const daysInMonth = getDaysInMonth(scheduleData.year, scheduleData.month);
-  const firstDay = getFirstDayOfMonth(scheduleData.year, scheduleData.month);
 
   const days = [];
   for (let day = 1; day <= daysInMonth; day++) {
@@ -206,7 +193,11 @@ const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
         {/* Cabeçalho */}
         <div className="print-header">
           <div className="logo-section">
-            <img src={`${process.env.PUBLIC_URL}/senac.png`} alt="SENAC" className="logo" />
+            <img
+              src={`${process.env.PUBLIC_URL}/senac.png`}
+              alt="SENAC"
+              className="logo"
+            />
           </div>
           <div className="header-info">
             <h1>SENAC CATALÃO</h1>
@@ -219,10 +210,8 @@ const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
           </div>
         </div>
 
-        {/* Título do mês - ESTE É O QUE FICA ACIMA DA TABELA */}
         <h2 className="month-title">{monthNames[scheduleData.month]}</h2>
 
-        {/* Tabela principal */}
         <div style={{ overflowX: 'auto', width: '100%' }}>
           <table className="schedule-table">
             <thead>
@@ -252,26 +241,27 @@ const PrintSchedule = ({ turmaId, monthDate, onReady }) => {
                   <tr key={ucName}>
                     <td className="uc-name">{ucName}</td>
                     {days.map((day) => {
-                      const hours = getHoursForDay(day);
+                      const hours = getHoursForDay(day, ucName);
                       const dateStr = `${scheduleData.year}-${String(scheduleData.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                       const isFer = isFeriado(dateStr);
                       const isSat = isSaturday(day);
                       const isSun = isSunday(day);
 
-                      // DEBUG: Log para verificar cada dia
-                      if (isFer) {
-                        console.log(`Dia ${day} (${dateStr}) é feriado`);
-                      }
-
                       let cellClass = 'schedule-cell';
                       if (hours) cellClass += ' has-class';
 
+                      // FIXED: Holiday priority over weekend
                       if (isFer) {
-                        // Se for feriado, sobrescreve o sábado/domingo
                         cellClass += ' feriado';
-                      } else {
+                        if (hours) {
+                          cellClass += ' has-class';
+                        }
+                      } else if (isSat || isSun) {
                         if (isSat) cellClass += ' saturday';
                         if (isSun) cellClass += ' sunday';
+                        if (hours) {
+                          cellClass += ' has-class';
+                        }
                       }
 
                       return (
