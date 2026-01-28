@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Calendar, Printer, Plus, Bell, X } from 'lucide-react';
+import { ArrowLeft, Calendar, Printer, Plus } from 'lucide-react';
 import { supabaseClient } from '../../services/supabase.js';
 import FeriadosDialog from '../../widgets/FeriadosDialog.jsx';
 import AdicionarAulaDialog from '../../widgets/AdicionarAulaDialog.jsx';
@@ -28,9 +28,6 @@ const CronogramaPage = ({ onNavigateHome }) => {
   const [showPrintView, setShowPrintView] = useState(false);
   const [cargaRestantePorUC, setCargaRestantePorUC] = useState({});
   const [aulaConflitante, setAulaConflitante] = useState(null);
-  const [novaAulaTentada, setNovaAulaTentada] = useState(null);
-  const [pendingClasses, setPendingClasses] = useState([]);
-  const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
 
   const monthNames = [
     'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO',
@@ -48,32 +45,28 @@ const CronogramaPage = ({ onNavigateHome }) => {
   }, [selectedTurmaId, events]);
 
   useEffect(() => {
-    loadPendingClasses();
-  }, [events]);
-
-  useEffect(() => {
-  if (!selectedDay) return;
+    if (!selectedDay) return;
   
-  const aulasDoDia = getEventsForDay(selectedDay);
-  if (aulasDoDia.length === 0) {
-    setCargaRestantePorUC({});
-    return;
-  }
-
-  const carregarCargas = async () => {
-    const novasCargas = {};
-    
-    for (const aula of aulasDoDia) {
-      if (!novasCargas[aula.iduc]) {
-        novasCargas[aula.iduc] = await calcularCargaRestanteUC(aula.iduc);
-      }
+    const aulasDoDia = getEventsForDay(selectedDay);
+    if (aulasDoDia.length === 0) {
+      setCargaRestantePorUC({});
+      return;
     }
-    
-    setCargaRestantePorUC(novasCargas);
-  };
   
-  carregarCargas();
-}, [selectedDay, filteredEvents]);
+    const carregarCargas = async () => {
+      const novasCargas = {};
+      
+      for (const aula of aulasDoDia) {
+        if (!novasCargas[aula.iduc]) {
+          novasCargas[aula.iduc] = await calcularCargaRestanteUC(aula.iduc);
+        }
+      }
+      
+      setCargaRestantePorUC(novasCargas);
+    };
+    
+    carregarCargas();
+  }, [selectedDay, filteredEvents]);
 
   const loadInitialData = async () => {
     try {
@@ -173,36 +166,6 @@ const CronogramaPage = ({ onNavigateHome }) => {
     }
   };
 
-  const loadPendingClasses = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const pending = [];
-
-    Object.entries(events).forEach(([dateKey, aulas]) => {
-      aulas.forEach(aula => {
-        if (aula.status === 'Agendada') {
-          const aulaDate = new Date(aula.data + 'T00:00:00');
-          aulaDate.setHours(0, 0, 0, 0);
-
-          if (aulaDate < today) {
-            pending.push({
-              ...aula,
-              dateFormatted: new Date(aula.data).toLocaleDateString('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              })
-            });
-          }
-        }
-      });
-    });
-
-    pending.sort((a, b) => new Date(b.data) - new Date(a.data));
-    setPendingClasses(pending);
-  };
-
   const aplicarFiltroTurma = () => {
     if (!selectedTurmaId) {
       setFilteredEvents(events);
@@ -275,67 +238,71 @@ const CronogramaPage = ({ onNavigateHome }) => {
     }
   };
 
+  // ---------------------------
+  // 🔥 NOVA LÓGICA DE CONFLITO
+  // ---------------------------
+  const parseHorario = (horarioStr) => {
+    const [inicio, fim] = horarioStr.split('-');
+    const [h1, m1] = inicio.split(':').map(Number);
+    const [h2, m2] = fim.split(':').map(Number);
+    return {
+      inicioMin: h1 * 60 + m1,
+      fimMin: h2 * 60 + m2
+    };
+  };
+
+  const horariosConflitam = (h1, h2) => {
+    return h1.inicioMin < h2.fimMin && h2.inicioMin < h1.fimMin;
+  };
+
   const handleAdicionarAula = async (aulaData) => {
     try {
       const aulasParaInserir = Array.from(aulaData.dias)
-        .map(d => new Date(d)) // <-- corrige o erro do Ctrl
+        .map(d => new Date(d))
         .filter(day => {
           const isSunday = day.getDay() === 0;
           const dateKey = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
           const isFeriadoDia = feriadosNacionais[dateKey] || feriadosMunicipais[dateKey];
-          if (isSunday || isFeriadoDia) return false;
-          return true;
+          return !(isSunday || isFeriadoDia);
         });
 
       if (aulasParaInserir.length === 0) {
         alert('Não é possível agendar aulas apenas em domingos ou feriados.');
         return;
       }
-      // Verifica se já existe aula no mesmo dia/horário e calcula horas usadas
-      const verificacoes = await Promise.all(
-        aulasParaInserir.map(async (day) => {
-          const dataStr = day.toISOString().split('T')[0];
 
-          const { data: aulasExistentes } = await supabaseClient
-            .from('aulas')
-            .select('idaula, horas, horario, iduc, unidades_curriculares(nomeuc)')
-            .eq('idturma', aulaData.idturma)
-            .eq('data', dataStr)
-            .eq('horario', aulaData.horario);
+      for (const day of aulasParaInserir) {
+        const dataStr = day.toISOString().split('T')[0];
 
-          // Calcula carga total já usada nesse período
-          const horasExistentes = aulasExistentes?.reduce((sum, a) => sum + (a.horas || 0), 0) || 0;
+        const { data: aulasExistentes, error } = await supabaseClient
+          .from('aulas')
+          .select('idaula, iduc, horario')
+          .eq('idturma', aulaData.idturma)
+          .eq('data', dataStr);
 
-          // Define limite por turno
-          const limiteHoras =
-            aulaData.horario === '19:00-22:00' ? 3 : 4;
+        if (error) throw error;
 
-          // Soma das horas existentes + as novas
-          const totalHoras = horasExistentes + aulaData.horas;
+        const novoHorario = parseHorario(aulaData.horario);
 
-          // Verifica se ultrapassa o limite
-          const ultrapassa = totalHoras > limiteHoras;
+        for (const aulaExistente of aulasExistentes || []) {
+          const horarioExistente = parseHorario(aulaExistente.horario);
 
-          return {
-            data: dataStr,
-            aulasExistentes,
-            horasExistentes,
-            limiteHoras,
-            ultrapassa
-          };
-        })
-      );
+          // ❌ Mesma UC no mesmo dia e horário
+          if (
+            aulaExistente.iduc === aulaData.iduc &&
+            aulaExistente.horario === aulaData.horario
+          ) {
+            alert('Já existe uma aula dessa UC neste dia e horário.');
+            return;
+          }
 
-      // Se alguma ultrapassar o limite → abre pop-up com opção de editar
-      const conflitos = verificacoes.filter(v => v.ultrapassa);
-
-      if (conflitos.length > 0) {
-        const conflito = conflitos[0];
-        const aulaConflitante = conflito.aulasExistentes[0];
-
-        setAulaConflitante(aulaConflitante);
-        setShowConflitoDialog(true);
-        return;
+          // ❌ Conflito de horário na mesma turma
+          if (horariosConflitam(novoHorario, horarioExistente)) {
+            setAulaConflitante(aulaExistente);
+            setShowConflitoDialog(true);
+            return;
+          }
+        }
       }
 
       const aulasParaSalvar = aulasParaInserir.map(day => ({
@@ -362,7 +329,6 @@ const CronogramaPage = ({ onNavigateHome }) => {
       alert('Erro ao adicionar aula: ' + error.message);
     }
   };
-
 
   const handleEditAula = (aula) => {
     setAulaToEdit(aula);
@@ -398,6 +364,35 @@ const CronogramaPage = ({ onNavigateHome }) => {
     if (!aulaToEdit) return;
 
     try {
+      // 🔍 Verifica conflitos ao editar
+      const dataStr = aulaToEdit.data;
+      const novoHorario = parseHorario(formData.horario);
+
+      const { data: aulasExistentes } = await supabaseClient
+        .from('aulas')
+        .select('idaula, iduc, horario')
+        .eq('idturma', aulaToEdit.idturma)
+        .eq('data', dataStr);
+
+      for (const aulaExistente of aulasExistentes || []) {
+        if (aulaExistente.idaula === aulaToEdit.idaula) continue;
+
+        const horarioExistente = parseHorario(aulaExistente.horario);
+
+        if (
+          aulaExistente.iduc === aulaToEdit.iduc &&
+          aulaExistente.horario === formData.horario
+        ) {
+          alert('Já existe uma aula dessa UC neste dia e horário.');
+          return;
+        }
+
+        if (horariosConflitam(novoHorario, horarioExistente)) {
+          alert('O novo horário entra em conflito com outra aula da mesma turma.');
+          return;
+        }
+      }
+
       const { error } = await supabaseClient
         .from('aulas')
         .update({
@@ -434,23 +429,6 @@ const CronogramaPage = ({ onNavigateHome }) => {
     }
   };
 
-  const handleReviewClass = (aula) => {
-    setShowNotificationsPanel(false);
-
-    const aulaDate = new Date(aula.data + 'T00:00:00');
-    setSelectedDay(aulaDate);
-    setSelectedDays(new Set());
-
-    const year = aulaDate.getFullYear();
-    const month = aulaDate.getMonth();
-    setCurrentDate(new Date(year, month, 1));
-
-    setTimeout(() => {
-      handleEditAula(aula);
-    }, 300);
-  };
-
-
   if (loading) {
     return (
       <div className="cronograma-page">
@@ -463,53 +441,6 @@ const CronogramaPage = ({ onNavigateHome }) => {
 
   return (
     <div className="cronograma-page">
-      {/* Notification Badge */}
-      {pendingClasses.length > 0 && !showNotificationsPanel && (
-        <div
-          className="notification-badge"
-          onClick={() => setShowNotificationsPanel(true)}
-        >
-          <Bell size={16} className="notification-icon" />
-          <span className="notification-count">{pendingClasses.length}</span>
-          <span className="notification-text">aulas pendentes</span>
-        </div>
-      )}
-
-      {/* Notifications Panel */}
-      {showNotificationsPanel && (
-        <div className="notifications-panel">
-          <div className="notifications-header">
-            <h3>Aulas Pendentes de Revisão</h3>
-            <button
-              className="close-notifications"
-              onClick={() => setShowNotificationsPanel(false)}
-            >
-              <X size={20} />
-            </button>
-          </div>
-          <div className="notifications-content">
-            <p className="notifications-description">
-              As aulas abaixo estão agendadas mas já passaram da data. Revise cada uma para confirmar se foi realizada, cancelada ou precisa ser reagendada.
-            </p>
-            {pendingClasses.map(aula => (
-              <div key={aula.idaula} className="notification-item">
-                <div className="notification-info">
-                  <strong>{aula.unidades_curriculares?.nomeuc}</strong>
-                  <span className="notification-date">{aula.dateFormatted}</span>
-                  <span className="notification-turma">{aula.turma?.turmanome}</span>
-                </div>
-                <button
-                  className="review-button"
-                  onClick={() => handleReviewClass(aula)}
-                >
-                  Revisar
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <div className="cronograma-header">
         <div className="cronograma-header-left">
@@ -599,7 +530,6 @@ const CronogramaPage = ({ onNavigateHome }) => {
             const isMultiSelected = selectedDays.has(date.getTime());
             const isWeekend = date.getDay() === 0 || date.getDay() === 6;
             const isFeriadoDay = isFeriado(date);
-            const isDomingoDay = isDomingo(date);
             const eventsForDay = getEventsForDay(date);
 
             return (
@@ -758,14 +688,12 @@ const CronogramaPage = ({ onNavigateHome }) => {
               boxShadow: '0 8px 24px rgba(0,0,0,0.2)'
             }}
           >
-            <h2 style={{ marginTop: 0, color: '#20b2aa' }}>Limite de horas excedido</h2>
+            <h2 style={{ marginTop: 0, color: '#20b2aa' }}>Conflito de horário</h2>
             <p>
-              O período já possui uma aula da mesma turma já agendada: <strong>{aulaConflitante.unidades_curriculares?.nomeuc}</strong> ({aulaConflitante.horas}h).
+              Já existe uma aula nesse horário para essa turma:
+              <strong> {aulaConflitante.unidades_curriculares?.nomeuc}</strong> ({aulaConflitante.horario})
             </p>
-            <p>
-              O total de horas desse período não pode ultrapassar o limite de {aulaConflitante.horario === '19:00-22:00' ? 3 : 4}h.
-            </p>
-            <p>Deseja editar a aula existente para liberar parte do horário?</p>
+            <p>Deseja editar a aula existente?</p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 18 }}>
               <button
                 className="btn-secondary"
@@ -787,7 +715,6 @@ const CronogramaPage = ({ onNavigateHome }) => {
           </div>
         </div>
       )}
-
 
       {showAdicionarAulaDialog && (
         <AdicionarAulaDialog
@@ -906,12 +833,10 @@ const CronogramaPage = ({ onNavigateHome }) => {
 };
 
 // =========================
-// COMPONENTE DE EDIÇÃO DE AULA
+// FUNÇÃO DE CARGA RESTANTE
 // =========================
-
 const calcularCargaRestanteUC = async (iduc) => {
   try {
-    // Primeiro, pega a carga horária total da UC
     const { data: ucData, error: ucError } = await supabaseClient
       .from('unidades_curriculares')
       .select('cargahoraria')
@@ -920,7 +845,6 @@ const calcularCargaRestanteUC = async (iduc) => {
 
     if (ucError) throw ucError;
 
-    // Depois, soma as horas das aulas REALIZADAS desta UC
     const { data: aulasRealizadas, error: aulasError } = await supabaseClient
       .from('aulas')
       .select('horas')
@@ -939,80 +863,71 @@ const calcularCargaRestanteUC = async (iduc) => {
   }
 };
 
+// =========================
+// COMPONENTE DE EDIÇÃO DE AULA (COM MINUTOS)
+// =========================
 const EditAulaForm = ({ aula, onSubmit, onCancel }) => {
-  const [formData, setFormData] = useState({
-    horario: aula.horario || '',
-    horas: aula.horas || 1,
-    status: aula.status || 'Agendada'
-  });
+  const [inicio, setInicio] = useState(aula.horario?.split('-')[0] || '08:00');
+  const [fim, setFim] = useState(aula.horario?.split('-')[1] || '12:00');
+  const [status, setStatus] = useState(aula.status || 'Agendada');
+
+  const calcularHoras = (ini, fim) => {
+    const [h1, m1] = ini.split(':').map(Number);
+    const [h2, m2] = fim.split(':').map(Number);
+    const minutos = (h2 * 60 + m2) - (h1 * 60 + m1);
+    return Math.max(minutos / 60, 0);
+  };
+
+  const horas = calcularHoras(inicio, fim);
 
   const getMaxHoras = () => {
-    if (formData.horario === '19:00-22:00') {
-      return 3;
-    }
+    if (inicio >= '19:00') return 3;
     return 4;
-  };
-
-  const handleHorasChange = (e) => {
-    const value = parseInt(e.target.value);
-    const maxHoras = getMaxHoras();
-    if (value > maxHoras) {
-      alert(`O turno ${formData.horario === '19:00-22:00' ? 'Noturno' : 'Matutino/Vespertino'} permite no máximo ${maxHoras} horas.`);
-      return;
-    }
-    setFormData({ ...formData, horas: value });
-  };
-
-  const handleHorarioChange = (e) => {
-    const newHorario = e.target.value;
-    const maxHoras = newHorario === '19:00-22:00' ? 3 : 4;
-    const newHoras = formData.horas > maxHoras ? maxHoras : formData.horas;
-    setFormData({ ...formData, horario: newHorario, horas: newHoras });
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const maxHoras = getMaxHoras();
-    if (formData.horas > maxHoras) {
-      alert(`O turno ${formData.horario === '19:00-22:00' ? 'Noturno' : 'Matutino/Vespertino'} permite no máximo ${maxHoras} horas.`);
+    if (horas > maxHoras) {
+      alert(`Esse período permite no máximo ${maxHoras} horas.`);
       return;
     }
-    onSubmit(formData);
+
+    onSubmit({
+      horario: `${inicio}-${fim}`,
+      horas,
+      status
+    });
   };
 
   return (
     <form onSubmit={handleSubmit}>
       <div className="form-group">
-        <label>Horário:</label>
-        <select
-          value={formData.horario}
-          onChange={handleHorarioChange}
-          className="form-select"
-        >
-          <option value="08:00-12:00">Matutino (08:00-12:00)</option>
-          <option value="14:00-18:00">Vespertino (13:00-17:00)</option>
-          <option value="19:00-22:00">Noturno (19:00-22:00)</option>
-        </select>
+        <label>Hora de início:</label>
+        <input
+          type="time"
+          value={inicio}
+          onChange={(e) => setInicio(e.target.value)}
+          className="form-input"
+        />
       </div>
 
       <div className="form-group">
-        <label>Horas: (máx. {getMaxHoras()}h)</label>
+        <label>Hora de fim:</label>
         <input
-          id="horas"
-          name="horas"
-          type="number"
-          min="1"
-          max={getMaxHoras()}
-          value={formData.horas}
-          onChange={handleHorasChange}
-          onInput={(e) => {
-            const max = getMaxHoras();
-            const value = parseInt(e.target.value);
-            if (value > max) {
-              e.target.value = max;
-              setFormData({ ...formData, horas: max });
-            }
-          }}
+          type="time"
+          value={fim}
+          onChange={(e) => setFim(e.target.value)}
+          className="form-input"
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Duração:</label>
+        <input
+          type="text"
+          value={`${horas.toFixed(2)}h`}
+          disabled
           className="form-input"
         />
       </div>
@@ -1020,8 +935,8 @@ const EditAulaForm = ({ aula, onSubmit, onCancel }) => {
       <div className="form-group">
         <label>Status:</label>
         <select
-          value={formData.status}
-          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
           className="form-select"
         >
           <option value="Agendada">Agendada</option>
