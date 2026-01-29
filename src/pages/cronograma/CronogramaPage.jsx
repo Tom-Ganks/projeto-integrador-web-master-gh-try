@@ -139,6 +139,7 @@ const CronogramaPage = ({ onNavigateHome }) => {
       feriados[`${year}-9-12`] = '🙏 Nossa Senhora Aparecida';
       feriados[`${year}-10-2`] = '🕯 Finados';
       feriados[`${year}-10-15`] = '🏛 Proclamação da República';
+      feriados[`${year}-10-20`] = '✊ Dia da Consciência Negra';
       feriados[`${year}-11-25`] = '🎄 Natal';
     }
 
